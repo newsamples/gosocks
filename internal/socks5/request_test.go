@@ -341,7 +341,7 @@ func TestServer_handleUDPAssociate(t *testing.T) {
 			Command:     CommandUDPAssociate,
 			AddressType: AddressTypeIPv4,
 			Address:     []byte{0, 0, 0, 0}, // Any address
-			Port:        0,                   // Any port
+			Port:        0,                  // Any port
 		}
 
 		conn := newMockConn(nil)
@@ -394,10 +394,10 @@ func TestServer_parseUDPHeader(t *testing.T) {
 	t.Run("valid IPv4 UDP header", func(t *testing.T) {
 		data := []byte{
 			0x00, 0x00, // Reserved
-			0x00,                   // Fragment
-			AddressTypeIPv4,        // Address type
-			192, 168, 1, 1,         // IPv4 address
-			0x00, 0x50,             // Port 80
+			0x00,            // Fragment
+			AddressTypeIPv4, // Address type
+			192, 168, 1, 1,  // IPv4 address
+			0x00, 0x50, // Port 80
 			0x48, 0x65, 0x6c, 0x6c, 0x6f, // "Hello"
 		}
 
@@ -415,7 +415,7 @@ func TestServer_parseUDPHeader(t *testing.T) {
 		domain := "example.com"
 		data := []byte{
 			0x00, 0x00, // Reserved
-			0x00,            // Fragment
+			0x00,              // Fragment
 			AddressTypeDomain, // Address type
 			byte(len(domain)), // Domain length
 		}
@@ -434,7 +434,7 @@ func TestServer_parseUDPHeader(t *testing.T) {
 	t.Run("fragmented packet error", func(t *testing.T) {
 		data := []byte{
 			0x00, 0x00, // Reserved
-			0x01,        // Fragment (non-zero)
+			0x01, // Fragment (non-zero)
 			AddressTypeIPv4,
 			192, 168, 1, 1,
 			0x00, 0x50,
@@ -484,9 +484,9 @@ func TestServer_serializeUDPHeader(t *testing.T) {
 		data := server.serializeUDPHeader(header)
 		expected := []byte{
 			0x00, 0x00, 0x00, // Reserved and Fragment
-			AddressTypeIPv4,        // Address type
-			192, 168, 1, 1,         // IPv4 address
-			0x00, 0x50,             // Port 80
+			AddressTypeIPv4, // Address type
+			192, 168, 1, 1,  // IPv4 address
+			0x00, 0x50, // Port 80
 			0x48, 0x65, 0x6c, 0x6c, 0x6f, // "Hello"
 		}
 

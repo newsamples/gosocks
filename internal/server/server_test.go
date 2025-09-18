@@ -25,12 +25,32 @@ func TestNew(t *testing.T) {
 		assert.NotNil(t, server.socks5Server)
 	})
 
-	t.Run("valid config with auth", func(t *testing.T) {
+	t.Run("valid config with single user auth", func(t *testing.T) {
 		config := &Config{
-			BindAddress:  "127.0.0.1:0",
-			EnableAuth:   true,
-			Username:     "testuser",
-			Password:     "testpass",
+			BindAddress: "127.0.0.1:0",
+			EnableAuth:  true,
+			Credentials: map[string]string{
+				"testuser": "testpass",
+			},
+			EnableIPv6GW: false,
+			Logger:       logrus.New(),
+		}
+
+		server, err := New(config)
+		require.NoError(t, err)
+		assert.NotNil(t, server)
+		assert.NotNil(t, server.socks5Server)
+	})
+
+	t.Run("valid config with multiple users auth", func(t *testing.T) {
+		config := &Config{
+			BindAddress: "127.0.0.1:0",
+			EnableAuth:  true,
+			Credentials: map[string]string{
+				"user1": "pass1",
+				"user2": "pass2",
+				"admin": "adminpass",
+			},
 			EnableIPv6GW: false,
 			Logger:       logrus.New(),
 		}

@@ -1,0 +1,21 @@
+server:
+  bind_address: "0.0.0.0:1080"
+  connect_timeout: 30s
+  read_timeout: 30s
+  write_timeout: 30s
+  enable_ipv6_gateway: false
+
+auth:
+  enable: false
+
+  # Multiple users configuration
+  users:
+    - username: "alice"
+      password: "secret123"
+    - username: "bob"
+      password: "mysecret"
+    - username: "admin"
+      password: "secure123"
+
+log:
+  level: "info"

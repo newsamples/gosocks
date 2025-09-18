@@ -6,40 +6,47 @@ import (
 	"os/signal"
 	"syscall"
 
+	"github.com/newsamples/gosocks/internal/config"
 	"github.com/newsamples/gosocks/internal/server"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
 func runServer(cmd *cobra.Command, _ []string) error {
-	bindAddress, _ := cmd.Flags().GetString("bind")
-	enableAuth, _ := cmd.Flags().GetBool("auth")
-	username, _ := cmd.Flags().GetString("username")
-	password, _ := cmd.Flags().GetString("password")
-	enableIPv6GW, _ := cmd.Flags().GetBool("ipv6-gateway")
-	logLevel, _ := cmd.Flags().GetString("log-level")
+	configFile, _ := cmd.Flags().GetString("config")
+
+	// Load configuration (config file + environment variables)
+	cfg, err := config.Load(configFile)
+	if err != nil {
+		return err
+	}
+
+	// Only allow minimal command line overrides for operational purposes
+	if cmd.Flags().Changed("log-level") {
+		cfg.Log.Level, _ = cmd.Flags().GetString("log-level")
+	}
+
+	// Validate configuration
+	if err := cfg.Validate(); err != nil {
+		return err
+	}
 
 	logger := logrus.New()
-	level, err := logrus.ParseLevel(logLevel)
+	level, err := logrus.ParseLevel(cfg.Log.Level)
 	if err != nil {
 		return err
 	}
 	logger.SetLevel(level)
 
-	if enableAuth && (username == "" || password == "") {
-		logger.Fatal("Username and password are required when authentication is enabled")
-	}
-
-	config := &server.Config{
-		BindAddress:  bindAddress,
-		EnableAuth:   enableAuth,
-		Username:     username,
-		Password:     password,
-		EnableIPv6GW: enableIPv6GW,
+	serverConfig := &server.Config{
+		BindAddress:  cfg.Server.BindAddress,
+		EnableAuth:   cfg.Auth.Enable,
+		Credentials:  cfg.GetCredentials(),
+		EnableIPv6GW: cfg.Server.EnableIPv6GW,
 		Logger:       logger,
 	}
 
-	srv, err := server.New(config)
+	srv, err := server.New(serverConfig)
 	if err != nil {
 		return err
 	}
@@ -65,12 +72,8 @@ func main() {
 		RunE: runServer,
 	}
 
-	rootCmd.Flags().StringP("bind", "b", "0.0.0.0:1080", "Address to bind the server to")
-	rootCmd.Flags().BoolP("auth", "a", false, "Enable username/password authentication")
-	rootCmd.Flags().StringP("username", "u", "", "Username for authentication (required if --auth is enabled)")
-	rootCmd.Flags().StringP("password", "p", "", "Password for authentication (required if --auth is enabled)")
-	rootCmd.Flags().BoolP("ipv6-gateway", "6", false, "Enable IPv6/IPv4 gateway functionality")
-	rootCmd.Flags().StringP("log-level", "l", "info", "Log level (debug, info, warn, error)")
+	rootCmd.Flags().StringP("config", "c", "", "Path to configuration file (YAML format)")
+	rootCmd.Flags().StringP("log-level", "l", "", "Override log level (debug, info, warn, error)")
 
 	if err := rootCmd.Execute(); err != nil {
 		os.Exit(1)

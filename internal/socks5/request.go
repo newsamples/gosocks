@@ -445,10 +445,10 @@ func (s *Server) relayUDPResponses(targetConn *net.UDPConn, relayConn *net.UDPCo
 
 		// Create UDP header
 		header := &UDPHeader{
-			Reserved:    0,
-			Fragment:    0,
-			Data:        buf[:n],
-			Port:        targetPort,
+			Reserved: 0,
+			Fragment: 0,
+			Data:     buf[:n],
+			Port:     targetPort,
 		}
 
 		// Determine address type and set address

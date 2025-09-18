@@ -12,8 +12,7 @@ import (
 type Config struct {
 	BindAddress  string
 	EnableAuth   bool
-	Username     string
-	Password     string
+	Credentials  map[string]string
 	EnableIPv6GW bool
 	Logger       *logrus.Logger
 }
@@ -33,10 +32,7 @@ func New(config *Config) (*Server, error) {
 	}
 
 	if config.EnableAuth {
-		credentials := map[string]string{
-			config.Username: config.Password,
-		}
-		authenticator := auth.NewUserPassAuthenticator(credentials)
+		authenticator := auth.NewUserPassAuthenticator(config.Credentials)
 		socks5Config.Authenticator = authenticator
 		socks5Config.AuthMethods = []byte{socks5.AuthMethodUserPass}
 	} else {

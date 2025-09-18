@@ -3,108 +3,36 @@ package main
 import (
 	"testing"
 
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestRunServer(t *testing.T) {
-	t.Run("invalid log level", func(t *testing.T) {
+	t.Run("invalid log level override", func(t *testing.T) {
 		cmd := &cobra.Command{}
+		cmd.Flags().String("config", "", "")
 		cmd.Flags().String("log-level", "invalid", "")
-		cmd.Flags().String("bind", "127.0.0.1:0", "")
-		cmd.Flags().Bool("auth", false, "")
-		cmd.Flags().String("username", "", "")
-		cmd.Flags().String("password", "", "")
-		cmd.Flags().Bool("ipv6-gateway", false, "")
+
+		cmd.Flags().Set("log-level", "invalid")
 
 		err := runServer(cmd, []string{})
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "not a valid logrus Level")
 	})
 
-	t.Run("auth validation", func(t *testing.T) {
-		testCases := []struct {
-			name     string
-			username string
-			password string
-		}{
-			{"without username", "", "testpass"},
-			{"without password", "testuser", ""},
-		}
-
-		for _, tc := range testCases {
-			t.Run(tc.name, func(t *testing.T) {
-				cmd := &cobra.Command{}
-				cmd.Flags().String("log-level", "info", "")
-				cmd.Flags().String("bind", "127.0.0.1:0", "")
-				cmd.Flags().Bool("auth", true, "")
-				cmd.Flags().String("username", tc.username, "")
-				cmd.Flags().String("password", tc.password, "")
-				cmd.Flags().Bool("ipv6-gateway", false, "")
-
-				cmd.Flags().Set("auth", "true")
-				if tc.username != "" {
-					cmd.Flags().Set("username", tc.username)
-				}
-				if tc.password != "" {
-					cmd.Flags().Set("password", tc.password)
-				}
-
-				enableAuth, _ := cmd.Flags().GetBool("auth")
-				username, _ := cmd.Flags().GetString("username")
-				password, _ := cmd.Flags().GetString("password")
-
-				// Test that the validation condition is met (would trigger Fatal)
-				assert.True(t, enableAuth && (username == "" || password == ""))
-			})
-		}
-	})
-
-	t.Run("invalid bind address", func(t *testing.T) {
+	t.Run("configuration loading with log level override", func(t *testing.T) {
 		cmd := &cobra.Command{}
-		cmd.Flags().String("log-level", "info", "")
-		cmd.Flags().String("bind", "invalid:address:format", "")
-		cmd.Flags().Bool("auth", false, "")
-		cmd.Flags().String("username", "", "")
-		cmd.Flags().String("password", "", "")
-		cmd.Flags().Bool("ipv6-gateway", false, "")
+		cmd.Flags().String("config", "", "")
+		cmd.Flags().String("log-level", "debug", "")
 
-		cmd.Flags().Set("bind", "invalid:address:format")
+		cmd.Flags().Set("log-level", "debug")
+
+		// Test that we can load config and validate without starting server
+		// We'll set GOSOCKS_SERVER_BIND_ADDRESS to an invalid address to force early failure
+		t.Setenv("GOSOCKS_SERVER_BIND_ADDRESS", "invalid:address:format")
 
 		err := runServer(cmd, []string{})
-		assert.Error(t, err)
-	})
-
-	t.Run("valid log levels", func(t *testing.T) {
-		testCases := []string{"debug", "info", "warn", "error"}
-		for _, level := range testCases {
-			t.Run("log level "+level, func(t *testing.T) {
-				// This would pass validation but we can't test the full server start
-				// without it actually starting and blocking, so we just test validation
-				_, err := logrus.ParseLevel(level)
-				assert.NoError(t, err)
-			})
-		}
-	})
-
-	t.Run("IPv6 gateway enabled", func(t *testing.T) {
-		cmd := &cobra.Command{}
-		cmd.Flags().String("log-level", "info", "")
-		cmd.Flags().String("bind", "127.0.0.1:0", "")
-		cmd.Flags().Bool("auth", false, "")
-		cmd.Flags().String("username", "", "")
-		cmd.Flags().String("password", "", "")
-		cmd.Flags().Bool("ipv6-gateway", true, "")
-
-		cmd.Flags().Set("ipv6-gateway", "true")
-
-		enableAuth, _ := cmd.Flags().GetBool("auth")
-		username, _ := cmd.Flags().GetString("username")
-		password, _ := cmd.Flags().GetString("password")
-
-		// Test that validation passes (IPv6GW doesn't affect pre-flight validation)
-		assert.False(t, enableAuth && (username == "" || password == ""))
+		assert.Error(t, err) // Should fail due to invalid bind address
 	})
 }
 
@@ -116,12 +44,8 @@ func TestCommandInitialization(t *testing.T) {
 			RunE: runServer,
 		}
 
-		testCmd.Flags().StringP("bind", "b", "0.0.0.0:1080", "Address to bind the server to")
-		testCmd.Flags().BoolP("auth", "a", false, "Enable username/password authentication")
-		testCmd.Flags().StringP("username", "u", "", "Username for authentication (required if --auth is enabled)")
-		testCmd.Flags().StringP("password", "p", "", "Password for authentication (required if --auth is enabled)")
-		testCmd.Flags().BoolP("ipv6-gateway", "6", false, "Enable IPv6/IPv4 gateway functionality")
-		testCmd.Flags().StringP("log-level", "l", "info", "Log level (debug, info, warn, error)")
+		testCmd.Flags().StringP("config", "c", "", "Path to configuration file (YAML format)")
+		testCmd.Flags().StringP("log-level", "l", "", "Override log level (debug, info, warn, error)")
 
 		// Check command configuration
 		assert.Equal(t, "gosocks", testCmd.Use)
@@ -129,30 +53,21 @@ func TestCommandInitialization(t *testing.T) {
 
 		flags := testCmd.Flags()
 
-		// Check that all expected flags exist
-		bindFlag := flags.Lookup("bind")
-		assert.NotNil(t, bindFlag)
-		assert.Equal(t, "0.0.0.0:1080", bindFlag.DefValue)
-
-		authFlag := flags.Lookup("auth")
-		assert.NotNil(t, authFlag)
-		assert.Equal(t, "false", authFlag.DefValue)
-
-		usernameFlag := flags.Lookup("username")
-		assert.NotNil(t, usernameFlag)
-		assert.Equal(t, "", usernameFlag.DefValue)
-
-		passwordFlag := flags.Lookup("password")
-		assert.NotNil(t, passwordFlag)
-		assert.Equal(t, "", passwordFlag.DefValue)
-
-		ipv6Flag := flags.Lookup("ipv6-gateway")
-		assert.NotNil(t, ipv6Flag)
-		assert.Equal(t, "false", ipv6Flag.DefValue)
+		// Check that expected flags exist
+		configFlag := flags.Lookup("config")
+		assert.NotNil(t, configFlag)
+		assert.Equal(t, "", configFlag.DefValue)
 
 		logLevelFlag := flags.Lookup("log-level")
 		assert.NotNil(t, logLevelFlag)
-		assert.Equal(t, "info", logLevelFlag.DefValue)
+		assert.Equal(t, "", logLevelFlag.DefValue)
+
+		// Verify old flags no longer exist
+		assert.Nil(t, flags.Lookup("bind"))
+		assert.Nil(t, flags.Lookup("auth"))
+		assert.Nil(t, flags.Lookup("username"))
+		assert.Nil(t, flags.Lookup("password"))
+		assert.Nil(t, flags.Lookup("ipv6-gateway"))
 	})
 }
 
