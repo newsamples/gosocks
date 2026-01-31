@@ -5,6 +5,8 @@ import (
 	"net"
 	"strconv"
 	"time"
+
+	"github.com/newsamples/gosocks/internal/routing"
 )
 
 func (s *Server) handleRequest(conn net.Conn) error {
@@ -250,6 +252,21 @@ func (s *Server) resolveAddress(addr *Address) string {
 }
 
 func (s *Server) dialTarget(address string) (net.Conn, error) {
+	// Check if we have routing configured
+	if s.router != nil {
+		if route, found := s.router.FindRoute(address); found {
+			// Use upstream SOCKS5 server
+			timeout := route.Timeout
+			if timeout == 0 {
+				timeout = s.config.ConnectTimeout
+			}
+
+			upstreamDialer := routing.NewUpstreamDialer(route.Upstream, timeout)
+			return upstreamDialer.Dial("tcp", address)
+		}
+	}
+
+	// Default direct connection
 	dialer := &net.Dialer{
 		Timeout: s.config.ConnectTimeout,
 	}

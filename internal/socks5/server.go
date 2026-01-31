@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/newsamples/gosocks/internal/routing"
 	"github.com/sirupsen/logrus"
 )
 
@@ -19,12 +20,14 @@ type Config struct {
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
 	IPv6Gateway    bool
+	Routes         []routing.Route
 }
 
 type Server struct {
 	config   *Config
 	listener net.Listener
 	logger   *logrus.Logger
+	router   *routing.Router
 }
 
 type Authenticator interface {
@@ -53,10 +56,21 @@ func NewServer(config *Config) (*Server, error) {
 		config.AuthMethods = []byte{AuthMethodNoAuth}
 	}
 
-	return &Server{
+	server := &Server{
 		config: config,
 		logger: config.Logger,
-	}, nil
+	}
+
+	// Initialize router if routes are configured
+	if len(config.Routes) > 0 {
+		router, err := routing.NewRouter(config.Routes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to create router: %w", err)
+		}
+		server.router = router
+	}
+
+	return server, nil
 }
 
 func (s *Server) Listen(ctx context.Context) error {

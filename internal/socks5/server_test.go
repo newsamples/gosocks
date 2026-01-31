@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/newsamples/gosocks/internal/routing"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -960,5 +961,50 @@ func TestServer_Close_EdgeCases(t *testing.T) {
 		// Now close should work
 		err = server.Close()
 		assert.NoError(t, err)
+	})
+}
+
+func TestServer_WithRouting(t *testing.T) {
+	t.Run("routing configuration", func(t *testing.T) {
+		routes := []routing.Route{
+			{Pattern: "\\.onion$", Upstream: "127.0.0.1:9050"},
+			{Pattern: "^.*\\.blocked\\.com$", Upstream: "proxy.example.com:1080"},
+		}
+
+		config := &Config{
+			Routes: routes,
+		}
+
+		server, err := NewServer(config)
+		require.NoError(t, err)
+		assert.NotNil(t, server.router)
+
+		// Test route finding
+		route, found := server.router.FindRoute("test.onion:80")
+		assert.True(t, found)
+		assert.Equal(t, "\\.onion$", route.Pattern)
+	})
+
+	t.Run("no routing configuration", func(t *testing.T) {
+		config := &Config{}
+
+		server, err := NewServer(config)
+		require.NoError(t, err)
+		assert.Nil(t, server.router)
+	})
+
+	t.Run("invalid regex in routes", func(t *testing.T) {
+		routes := []routing.Route{
+			{Pattern: "[invalid regex", Upstream: "127.0.0.1:1080"},
+		}
+
+		config := &Config{
+			Routes: routes,
+		}
+
+		server, err := NewServer(config)
+		assert.Error(t, err)
+		assert.Nil(t, server)
+		assert.Contains(t, err.Error(), "failed to create router")
 	})
 }
